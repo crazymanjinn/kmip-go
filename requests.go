@@ -303,11 +303,11 @@ func (c *conn) serve(ctx context.Context) {
 		//}
 		if err != nil {
 			if merry.Is(err, io.EOF) {
-				c.server.logf("client closed connection")
 				return
 			}
 
 			// TODO: do something with this error
+			c.server.logf("encountered unknown error: %s", err)
 			panic(err)
 			//const errorHeaders= "\r\nContent-Type: text/plain; charset=utf-8\r\nConnection: close\r\n\r\n"
 			//
