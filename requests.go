@@ -7,16 +7,18 @@ import (
 	"crypto/tls"
 	"errors"
 	"fmt"
-	"github.com/ansel1/merry"
-	"github.com/gemalto/flume"
-	"github.com/gemalto/kmip-go/ttlv"
-	"github.com/google/uuid"
 	"io"
+	"log"
 	"net"
 	"runtime"
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/ansel1/merry"
+	"github.com/gemalto/flume"
+	"github.com/gemalto/kmip-go/ttlv"
+	"github.com/google/uuid"
 )
 
 var serverLog = flume.New("kmip_server")
@@ -27,6 +29,12 @@ type Server struct {
 	mu         sync.Mutex
 	listeners  map[*net.Listener]struct{}
 	inShutdown int32 // accessed atomically (non-zero means we're in Shutdown)
+
+	// ErrorLog specifies an optional logger for errors accepting
+	// connections, unexpected behavior from handlers, and
+	// underlying FileSystem errors.
+	// If nil, logging is done via the log package's standard logger.
+	ErrorLog *log.Logger
 }
 
 // ErrServerClosed is returned by the Server's Serve, ServeTLS, ListenAndServe,
@@ -203,6 +211,14 @@ func (s *Server) shuttingDown() bool {
 	return atomic.LoadInt32(&s.inShutdown) != 0
 }
 
+func (s *Server) logf(format string, args ...interface{}) {
+	if s.ErrorLog != nil {
+		s.ErrorLog.Printf(format, args...)
+	} else {
+		log.Printf(format, args...)
+	}
+}
+
 type conn struct {
 	rwc        net.Conn
 	remoteAddr string
@@ -240,12 +256,10 @@ func (c *conn) serve(ctx context.Context) {
 			buf := make([]byte, size)
 			buf = buf[:runtime.Stack(buf, false)]
 			if e, ok := err.(error); ok {
-				fmt.Printf("kmip: panic serving %v: %v\n%s", c.remoteAddr, Details(e), buf)
+				c.server.logf("kmip: panic serving %v: %v\n%s", c.remoteAddr, Details(e), buf)
 			} else {
-				fmt.Printf("kmip: panic serving %v: %v\n%s", c.remoteAddr, err, buf)
+				c.server.logf("kmip: panic serving %v: %v\n%s", c.remoteAddr, err, buf)
 			}
-
-			//c.server.logf("http: panic serving %v: %v\n%s", c.remoteAddr, err, buf)
 		}
 		cancelCtx()
 		//if !c.hijacked() {
@@ -262,9 +276,7 @@ func (c *conn) serve(ctx context.Context) {
 		//	c.rwc.SetWriteDeadline(time.Now().Add(d))
 		//}
 		if err := tlsConn.Handshake(); err != nil {
-			// TODO: logging support
-			fmt.Printf("kmip: TLS handshake error from %s: %v", c.rwc.RemoteAddr(), err)
-			//c.server.logf("http: TLS handshake error from %s: %v", c.rwc.RemoteAddr(), err)
+			c.server.logf("kmip: TLS handshake error from %s: %v", c.rwc.RemoteAddr(), err)
 			return
 		}
 		c.tlsState = new(tls.ConnectionState)
