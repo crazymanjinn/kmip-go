@@ -303,7 +303,7 @@ func (c *conn) serve(ctx context.Context) {
 		//}
 		if err != nil {
 			if merry.Is(err, io.EOF) {
-				fmt.Println("client closed connection")
+				c.server.logf("client closed connection")
 				return
 			}
 
