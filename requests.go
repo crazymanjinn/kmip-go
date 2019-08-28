@@ -39,7 +39,7 @@ type Server struct {
 
 // ErrServerClosed is returned by the Server's Serve, ServeTLS, ListenAndServe,
 // and ListenAndServeTLS methods after a call to Shutdown or Close.
-var ErrServerClosed = errors.New("http: Server closed")
+var ErrServerClosed = errors.New("kmip: Server closed")
 
 // Serve accepts incoming connections on the Listener l, creating a
 // new service goroutine for each. The service goroutines read requests and
